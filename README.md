@@ -12,10 +12,14 @@ caja con corte, reportes y diseño offline-first.
 > viven en el navegador (IndexedDB) y vienen sembrados con productos, ventas y un corte
 > de caja de ejemplo.
 
-> **Estado: demo funcional COMPLETA.** Login con roles (PIN), catálogo/inventario (CRUD),
-> venta con pago mixto y ticket, caja (apertura + cierre/corte con historial) y reportes
-> (dashboard con gráficas). Todo offline-first sobre IndexedDB, i18n es-MX/en, tema
-> claro/oscuro, con autotest (`node check.js`) y tests unitarios (`npx vitest run`).
+> **Estado: demo funcional COMPLETA + módulos de gestión.** Login con roles (PIN),
+> catálogo/inventario (CRUD), venta con pago mixto y ticket, caja (apertura + cierre/corte
+> con historial) y reportes (dashboard con gráficas). Además: **Clientes** (CRUD, historial,
+> saldo/puntos), **Proveedores** (CRUD), **Compras/Entradas** (suben stock, insert-only),
+> **Apartados** (con abonos), **Fidelización/Puntos** (configurable, canje en ventas) y
+> **Devoluciones** (reponen stock y restan caja; solo gerente/admin). Todo offline-first
+> sobre IndexedDB, i18n es-MX/en, tema claro/oscuro, con autotest (`node check.js`) y tests
+> unitarios (`npx vitest run`).
 
 ---
 
@@ -254,6 +258,7 @@ ui_shots/                  Capturas de evidencia visual
 - [x] **Iter 4** — Caja: cierre/corte con diferencia, historial de cortes, tests unitarios.
 - [x] **Iter 5** — Reportes: dashboard con gráficas (ventas por día, top productos, caja).
 - [x] **Iter 6** — Despliegue a Cloudflare Pages (`agc-openpos`) + repo público.
+- [x] **Iter 7** — Módulos de gestión: Clientes, Proveedores, Compras, Apartados, Fidelización, Devoluciones.
 
 ---
 

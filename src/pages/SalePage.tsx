@@ -10,11 +10,13 @@ import {
   DialogContentText,
   DialogTitle,
   Divider,
+  Chip,
   IconButton,
   InputAdornment,
   List,
   ListItemButton,
   ListItemText,
+  MenuItem,
   Paper,
   Stack,
   Table,
@@ -34,10 +36,13 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import PointOfSaleOutlinedIcon from '@mui/icons-material/PointOfSaleOutlined';
 import { useTranslation } from 'react-i18next';
+import LoyaltyIcon from '@mui/icons-material/Loyalty';
 import { getAllProducts } from '../db/products';
 import { addSale } from '../db/sales';
 import { createCashSession, getActiveCashSession } from '../db/cash';
-import type { CashSession, Product, Sale, SaleItem, Payment } from '../db/db';
+import { getAllCustomers, adjustCustomer } from '../db/customers';
+import { getLoyaltyConfig, pointsEarned, pointsToCents } from '../db/loyalty';
+import type { CashSession, Customer, LoyaltyConfig, Product, Sale, SaleItem, Payment } from '../db/db';
 import { formatCurrency, parseCurrencyToCents } from '../utils/format';
 import { useAuth } from '../auth/AuthContext';
 import PaymentDialog from '../components/PaymentDialog';
@@ -60,13 +65,23 @@ export default function SalePage() {
   const [payOpen, setPayOpen] = useState(false);
   const [lastSale, setLastSale] = useState<Sale | null>(null);
 
+  // Fidelización
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerId, setCustomerId] = useState('');
+  const [redeem, setRedeem] = useState('');
+  const [cfg, setCfg] = useState<LoyaltyConfig | null>(null);
+
   // Turno de caja
   const [session, setSession] = useState<CashSession | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const [initialCash, setInitialCash] = useState('');
 
+  const reloadCustomers = () => void getAllCustomers().then(setCustomers);
+
   useEffect(() => {
     void getAllProducts().then(setProducts);
+    reloadCustomers();
+    void getLoyaltyConfig().then(setCfg);
     void getActiveCashSession().then((s) => {
       setSession(s);
       setSessionLoaded(true);
@@ -88,6 +103,21 @@ export default function SalePage() {
     () => cart.reduce((s, l) => s + l.priceCents * l.quantity, 0),
     [cart],
   );
+
+  const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
+
+  // Puntos que el cliente pide canjear (limitados por sus puntos y por el total).
+  const redeemPts = useMemo(() => {
+    if (!selectedCustomer || !cfg) return 0;
+    const wanted = Math.max(0, Math.floor(Number(redeem) || 0));
+    const maxByPoints = selectedCustomer.points;
+    const maxByTotal = cfg.redeemValueCents > 0 ? Math.floor(totalCents / cfg.redeemValueCents) : 0;
+    return Math.min(wanted, maxByPoints, maxByTotal);
+  }, [selectedCustomer, cfg, redeem, totalCents]);
+
+  const discountCents = cfg ? pointsToCents(redeemPts, cfg) : 0;
+  const effectiveTotal = Math.max(0, totalCents - discountCents);
+  const willEarn = cfg ? pointsEarned(effectiveTotal, cfg) : 0;
 
   const addToCart = useCallback((p: Product) => {
     const id = String(p.id);
@@ -128,15 +158,26 @@ export default function SalePage() {
     const sale: Sale = {
       id: crypto.randomUUID(),
       items,
-      totalCents,
+      totalCents: effectiveTotal,
       payments,
       changeCents,
       operatorId: user?.id ?? 'desconocido',
       timestamp: Date.now(),
+      ...(selectedCustomer ? { customerId: selectedCustomer.id } : {}),
+      ...(discountCents > 0 ? { discountCents, pointsRedeemed: redeemPts } : {}),
+      ...(willEarn > 0 && selectedCustomer ? { pointsEarned: willEarn } : {}),
     };
     await addSale(sale);
+    // Acumula/canjea puntos del cliente (si aplica).
+    if (selectedCustomer) {
+      const delta = (willEarn || 0) - (redeemPts || 0);
+      if (delta !== 0) await adjustCustomer(selectedCustomer.id, delta, 0);
+      reloadCustomers();
+    }
     setPayOpen(false);
     setCart([]);
+    setCustomerId('');
+    setRedeem('');
     setLastSale(sale);
   };
 
@@ -265,16 +306,66 @@ export default function SalePage() {
             </TableContainer>
 
             <Divider sx={{ my: 2 }} />
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+
+            {/* Fidelización: cliente y canje de puntos */}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
+              <TextField
+                select
+                size="small"
+                label={t('sale.customer')}
+                value={customerId}
+                onChange={(e) => { setCustomerId(e.target.value); setRedeem(''); }}
+                sx={{ flex: 1 }}
+              >
+                <MenuItem value="">{t('sale.no_customer')}</MenuItem>
+                {customers.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>
+                    {c.name} · {c.points} {t('loyalty.point')}
+                  </MenuItem>
+                ))}
+              </TextField>
+              {selectedCustomer && selectedCustomer.points > 0 && (
+                <TextField
+                  size="small"
+                  label={t('sale.redeem_points')}
+                  value={redeem}
+                  onChange={(e) => setRedeem(e.target.value)}
+                  sx={{ width: { xs: '100%', sm: 150 } }}
+                  slotProps={{ input: { startAdornment: <InputAdornment position="start"><LoyaltyIcon fontSize="small" /></InputAdornment> } }}
+                />
+              )}
+            </Stack>
+
+            {discountCents > 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {t('sale.discount')} ({redeemPts} {t('loyalty.point')})
+                </Typography>
+                <Typography variant="body2" color="success.main">- {formatCurrency(discountCents)}</Typography>
+              </Box>
+            )}
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="h6">{t('sale.total')}</Typography>
               <Typography variant="h5" color="primary" sx={{ fontWeight: 700 }}>
-                {formatCurrency(totalCents)}
+                {formatCurrency(effectiveTotal)}
               </Typography>
             </Box>
+            {selectedCustomer && willEarn > 0 && (
+              <Chip
+                size="small"
+                color="secondary"
+                variant="outlined"
+                icon={<LoyaltyIcon />}
+                label={t('sale.will_earn', { points: willEarn })}
+                sx={{ mb: 2 }}
+              />
+            )}
             <Button
               variant="contained"
               size="large"
               fullWidth
+              sx={{ mt: 1 }}
               disabled={cart.length === 0 || needsSession}
               onClick={() => setPayOpen(true)}
             >
@@ -286,7 +377,7 @@ export default function SalePage() {
 
       <PaymentDialog
         open={payOpen}
-        totalCents={totalCents}
+        totalCents={effectiveTotal}
         onCancel={() => setPayOpen(false)}
         onComplete={handleComplete}
       />

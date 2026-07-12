@@ -16,13 +16,14 @@ import {
   Typography,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import type { CashSession, Sale } from '../db/db';
+import type { CashSession, ReturnRecord, Sale } from '../db/db';
 import { filterSessionSales, summarizeSession } from '../db/cash';
 import { formatCurrency } from '../utils/format';
 
 interface Props {
   session: CashSession | null;
   sales: Sale[];
+  returns?: ReturnRecord[];
   onClose: () => void;
 }
 
@@ -40,12 +41,12 @@ function Row({ label, value, bold, color }: { label: string; value: string; bold
 }
 
 /** Detalle de un corte: resumen + ventas del turno. */
-export default function SessionDetailDialog({ session, sales, onClose }: Props) {
+export default function SessionDetailDialog({ session, sales, returns = [], onClose }: Props) {
   const { t, i18n } = useTranslation();
   if (!session) return null;
 
   const locale = i18n.language === 'en' ? 'en-US' : 'es-MX';
-  const summary = summarizeSession(session, sales);
+  const summary = summarizeSession(session, sales, returns);
   const turnSales = filterSessionSales(session, sales).sort((a, b) => b.timestamp - a.timestamp);
   const diffCents = (session.finalCashCents ?? 0) - summary.expectedCashCents;
   const diffColor = diffCents === 0 ? 'success.main' : diffCents > 0 ? 'info.main' : 'error.main';

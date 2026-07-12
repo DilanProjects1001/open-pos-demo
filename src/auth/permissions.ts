@@ -13,3 +13,8 @@ export function canCloseShift(role: Role | undefined | null): boolean {
 export function canViewCashHistory(role: Role | undefined | null): boolean {
   return role === 'admin' || role === 'gerente';
 }
+
+/** ¿Puede autorizar devoluciones? Solo gerente/admin. */
+export function canDoReturns(role: Role | undefined | null): boolean {
+  return role === 'admin' || role === 'gerente';
+}

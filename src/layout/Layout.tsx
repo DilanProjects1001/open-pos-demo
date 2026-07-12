@@ -30,6 +30,12 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import LogoutIcon from '@mui/icons-material/Logout';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
+import PeopleIcon from '@mui/icons-material/People';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import MoveToInboxIcon from '@mui/icons-material/MoveToInbox';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
+import LoyaltyIcon from '@mui/icons-material/Loyalty';
+import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useColorMode } from '../theme/ColorModeContext';
@@ -49,8 +55,14 @@ interface NavItem {
 const navItems: NavItem[] = [
   { key: 'sale', path: '/venta', icon: <PointOfSaleIcon /> },
   { key: 'catalog', path: '/catalogo', icon: <Inventory2Icon /> },
+  { key: 'customers', path: '/clientes', icon: <PeopleIcon /> },
+  { key: 'suppliers', path: '/proveedores', icon: <LocalShippingIcon /> },
+  { key: 'purchases', path: '/compras', icon: <MoveToInboxIcon /> },
+  { key: 'layaways', path: '/apartados', icon: <BookmarkIcon /> },
+  { key: 'loyalty', path: '/fidelizacion', icon: <LoyaltyIcon /> },
+  { key: 'returns', path: '/devoluciones', icon: <AssignmentReturnIcon />, roles: ['admin', 'gerente'] },
   { key: 'cash', path: '/caja', icon: <SavingsIcon /> },
-  { key: 'reports', path: '/reportes', icon: <BarChartIcon /> },
+  { key: 'reports', path: '/reportes', icon: <BarChartIcon />, roles: ['admin', 'gerente'] },
 ];
 
 const roleColor: Record<Role, 'error' | 'warning' | 'info'> = {

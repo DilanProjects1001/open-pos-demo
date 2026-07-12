@@ -28,7 +28,8 @@ import {
   type SessionSummary,
 } from '../db/cash';
 import { getAllSales } from '../db/sales';
-import type { CashSession, Sale } from '../db/db';
+import { getAllReturns } from '../db/returns';
+import type { CashSession, ReturnRecord, Sale } from '../db/db';
 import { formatCurrency } from '../utils/format';
 import { useAuth } from '../auth/AuthContext';
 import { canCloseShift } from '../auth/permissions';
@@ -43,18 +44,21 @@ export default function CashPage() {
   const [active, setActive] = useState<CashSession | null>(null);
   const [closed, setClosed] = useState<CashSession[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [returns, setReturns] = useState<ReturnRecord[]>([]);
   const [closeOpen, setCloseOpen] = useState(false);
   const [detail, setDetail] = useState<CashSession | null>(null);
 
   const reload = useCallback(async () => {
-    const [a, c, s] = await Promise.all([
+    const [a, c, s, r] = await Promise.all([
       getActiveCashSession(),
       getClosedSessions(),
       getAllSales(),
+      getAllReturns(),
     ]);
     setActive(a);
     setClosed(c);
     setSales(s);
+    setReturns(r);
   }, []);
 
   useEffect(() => {
@@ -62,7 +66,7 @@ export default function CashPage() {
   }, [reload]);
 
   const activeSummary: SessionSummary | null = active
-    ? summarizeSession(active, sales)
+    ? summarizeSession(active, sales, returns)
     : null;
 
   const canClose = canCloseShift(user?.role);
@@ -145,7 +149,7 @@ export default function CashPage() {
           </TableHead>
           <TableBody>
             {closed.map((s) => {
-              const sum = summarizeSession(s, sales);
+              const sum = summarizeSession(s, sales, returns);
               const diff = (s.finalCashCents ?? 0) - sum.expectedCashCents;
               const diffColor =
                 diff === 0 ? 'success.main' : diff > 0 ? 'info.main' : 'error.main';
@@ -194,7 +198,7 @@ export default function CashPage() {
         onConfirm={handleConfirmClose}
       />
 
-      <SessionDetailDialog session={detail} sales={sales} onClose={() => setDetail(null)} />
+      <SessionDetailDialog session={detail} sales={sales} returns={returns} onClose={() => setDetail(null)} />
     </Box>
   );
 }

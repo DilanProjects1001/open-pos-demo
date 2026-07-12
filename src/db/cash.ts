@@ -1,5 +1,6 @@
-import { getDB, type CashSession, type Sale } from './db';
+import { getDB, type CashSession, type ReturnRecord, type Sale } from './db';
 import { getAllSales } from './sales';
+import { getAllReturns } from './returns';
 
 /** Resumen (corte) de un turno de caja. Todos los montos en centavos. */
 export interface SessionSummary {
@@ -9,7 +10,8 @@ export interface SessionSummary {
   cardCents: number;
   transferCents: number;
   changeCents: number; // cambio entregado en efectivo
-  expectedCashCents: number; // efectivo que debería haber en caja: inicial + efectivo - cambio
+  refundsCashCents: number; // devoluciones pagadas en efectivo (egreso de caja)
+  expectedCashCents: number; // inicial + efectivo - cambio - devoluciones en efectivo
 }
 
 /** Devuelve las ventas que pertenecen a un turno (por rango de fechas). PURA. */
@@ -18,8 +20,24 @@ export function filterSessionSales(session: CashSession, sales: Sale[]): Sale[] 
   return sales.filter((s) => s.timestamp >= session.openedAt && s.timestamp <= end);
 }
 
-/** Calcula el resumen de un turno a partir de sus ventas. PURA (sin IndexedDB). */
-export function summarizeSession(session: CashSession, sales: Sale[]): SessionSummary {
+/** Devuelve las devoluciones que pertenecen a un turno (por rango de fechas). PURA. */
+export function filterSessionReturns(
+  session: CashSession,
+  returns: ReturnRecord[],
+): ReturnRecord[] {
+  const end = session.closedAt ?? Number.POSITIVE_INFINITY;
+  return returns.filter((r) => r.timestamp >= session.openedAt && r.timestamp <= end);
+}
+
+/**
+ * Calcula el resumen de un turno a partir de sus ventas (y devoluciones). PURA.
+ * Las devoluciones pagadas en efectivo se restan del efectivo esperado en caja.
+ */
+export function summarizeSession(
+  session: CashSession,
+  sales: Sale[],
+  returns: ReturnRecord[] = [],
+): SessionSummary {
   const inTurn = filterSessionSales(session, sales);
   let cashCents = 0;
   let cardCents = 0;
@@ -35,7 +53,11 @@ export function summarizeSession(session: CashSession, sales: Sale[]): SessionSu
       else transferCents += p.amountCents;
     }
   }
-  const expectedCashCents = session.initialCashCents + cashCents - changeCents;
+  const refundsCashCents = filterSessionReturns(session, returns)
+    .filter((r) => r.method === 'cash')
+    .reduce((sum, r) => sum + r.refundCents, 0);
+  const expectedCashCents =
+    session.initialCashCents + cashCents - changeCents - refundsCashCents;
   return {
     salesCount: inTurn.length,
     totalCents,
@@ -43,6 +65,7 @@ export function summarizeSession(session: CashSession, sales: Sale[]): SessionSu
     cardCents,
     transferCents,
     changeCents,
+    refundsCashCents,
     expectedCashCents,
   };
 }
@@ -113,6 +136,6 @@ export async function closeCashSession(
 
 /** Lee el resumen de un turno desde IndexedDB (comodidad para la UI). */
 export async function getSessionSummary(session: CashSession): Promise<SessionSummary> {
-  const sales = await getAllSales();
-  return summarizeSession(session, sales);
+  const [sales, returns] = await Promise.all([getAllSales(), getAllReturns()]);
+  return summarizeSession(session, sales, returns);
 }

@@ -107,17 +107,54 @@ const reportsPage = read('src/pages/ReportsPage.tsx');
 if (reportsPage.includes('BarChart')) ok('ReportsPage usa gráficas (BarChart)');
 else fail('ReportsPage no usa BarChart');
 
-// --- 25) La ruta /reportes responde 200 (si hay un servidor levantado) ---
+// --- 11) Secciones nuevas: módulos de datos y páginas presentes ---
+const dbModules = {
+  'customers.ts': ['getAllCustomers', 'saveCustomer', 'getCustomerSales'],
+  'suppliers.ts': ['getAllSuppliers', 'saveSupplier'],
+  'purchases.ts': ['addPurchase'],
+  'layaways.ts': ['addLayawayPayment', 'layawayBalance'],
+  'returns.ts': ['addReturn'],
+  'loyalty.ts': ['pointsEarned', 'pointsToCents'],
+};
+for (const [file, fns] of Object.entries(dbModules)) {
+  const src = read(`src/db/${file}`);
+  for (const fn of fns) {
+    if (src.includes(fn)) ok(`db/${file} exporta ${fn}`);
+    else fail(`falta ${fn} en db/${file}`);
+  }
+}
+for (const page of ['CustomersPage', 'SuppliersPage', 'PurchasesPage', 'LayawaysPage', 'LoyaltyPage', 'ReturnsPage']) {
+  try { read(`src/pages/${page}.tsx`); ok(`existe la página ${page}`); }
+  catch { fail(`falta la página ${page}`); }
+}
+// Stores nuevos declarados en db.ts
+for (const store of ['customers', 'suppliers', 'purchases', 'layaways', 'returns', 'settings']) {
+  if (db.includes(`'${store}'`)) ok(`db.ts declara el store '${store}'`);
+  else fail(`falta el store '${store}' en db.ts`);
+}
+// Devoluciones protegidas por rol
+if (perms.includes('canDoReturns')) ok('permissions.ts exporta canDoReturns');
+else fail('falta canDoReturns en permissions.ts');
+const appTsx = read('src/App.tsx');
+if (/roles=\{\['admin', 'gerente'\]\}[\s\S]*devoluciones/.test(appTsx)) ok('la ruta /devoluciones está protegida (admin/gerente)');
+else fail('la ruta /devoluciones no parece protegida por rol');
+
+// --- 25) Rutas responden 200 (si hay un servidor levantado) ---
 const BASE = process.env.CHECK_BASE_URL || 'http://localhost:4599';
 try {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 1500);
-  const res = await fetch(`${BASE}/reportes`, { signal: ctrl.signal });
-  clearTimeout(timer);
-  if (res.status === 200) ok(`GET ${BASE}/reportes -> 200`);
-  else fail(`GET ${BASE}/reportes -> ${res.status}`);
+  const routes = ['/reportes', '/clientes', '/proveedores', '/compras', '/apartados', '/fidelizacion', '/devoluciones'];
+  let allOk = true;
+  for (const r of routes) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2000);
+    const res = await fetch(`${BASE}${r}`, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (res.status === 200) ok(`GET ${BASE}${r} -> 200`);
+    else { fail(`GET ${BASE}${r} -> ${res.status}`); allOk = false; }
+  }
+  if (allOk) ok('todas las rutas nuevas responden 200');
 } catch {
-  console.log('  SKIP  GET /reportes (servidor no disponible; levanta preview/dev y reintenta)');
+  console.log('  SKIP  GET rutas (servidor no disponible; levanta preview/dev y reintenta)');
 }
 
 console.log(failures === 0 ? '\nTODO OK' : `\n${failures} FALLO(S)`);

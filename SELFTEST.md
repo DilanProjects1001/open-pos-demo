@@ -106,8 +106,29 @@ Generadas manejando **Edge** headless con perfil aislado
 - `iter_5_live.png` — venta completa con pago mixto ejecutada **sobre el sitio en vivo**
   (login admin → turno → carrito $120 → efectivo $100 + tarjeta $30 → cambio $10 → ticket).
 
+## Módulos de gestión (iteración 7)
+
+Seis secciones nuevas, cada una con su ruta, entrada en el menú y datos de ejemplo:
+
+- **Clientes** (`/clientes`): CRUD, historial de compras, saldo y puntos.
+- **Proveedores** (`/proveedores`): CRUD.
+- **Compras/Entradas** (`/compras`): registra compra a proveedor → **incrementa stock**
+  (movimiento insert-only, transacción atómica).
+- **Apartados** (`/apartados`): apartados con abonos parciales hasta liquidar; ligados a cliente.
+- **Fidelización** (`/fidelizacion`): puntos configurables (1 pt por $10 por defecto),
+  canje de puntos por saldo/descuento; se acumulan al vender a un cliente.
+- **Devoluciones** (`/devoluciones`, solo gerente/admin): devuelve artículos de una venta,
+  **repone stock** y **resta el efectivo de la caja** (ver `summarizeSession`).
+
+Tests unitarios añadidos: `loyalty.test.ts`, `layaway.test.ts`, `returns.test.ts`
+(devoluciones en efectivo restan del efectivo esperado del turno). Total: **25 pruebas**.
+
+Verificación en vivo (Cloudflare Pages): las 7 rutas nuevas responden **200**; se
+registró una **compra** (110 uds, $3,300 → sube stock) y una **devolución** (−$85 efectivo)
+directamente sobre el sitio publicado (`iter_6_live_compra.png`, `iter_6_live_devolucion.png`).
+
 ## Última ejecución
 
-`node check.js` (con preview) → **TODO OK**, exit 0 (incluye `GET /reportes -> 200`).
-`npx vitest run` → **16 passed** (4 archivos), exit 0.
+`node check.js` (con preview) → **TODO OK**, exit 0 (incluye `GET` 200 de las 7 rutas nuevas).
+`npx vitest run` → **25 passed** (7 archivos), exit 0.
 `npm run build` → compila sin errores.

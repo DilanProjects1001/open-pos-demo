@@ -1,4 +1,7 @@
-import { getDB, type CashSession, type Product, type Sale, type SaleItem, type Payment } from './db';
+import {
+  getDB, type CashSession, type Customer, type Layaway, type Product, type Sale,
+  type SaleItem, type Payment, type Supplier,
+} from './db';
 import { countProducts, getAllProducts } from './products';
 import { countSales, getAllSales } from './sales';
 import { countCashSessions, summarizeSession } from './cash';
@@ -26,6 +29,7 @@ export async function ensureSeed(): Promise<boolean> {
   if (existing > 0) {
     await ensureSalesSeed();
     await ensureCashSeed();
+    await ensureBusinessSeed();
     return false;
   }
 
@@ -36,10 +40,60 @@ export async function ensureSeed(): Promise<boolean> {
 
   await ensureSalesSeed();
   await ensureCashSeed();
+  await ensureBusinessSeed();
   return true;
 }
 
 const DAY = 24 * 60 * 60 * 1000;
+
+// Clientes, proveedores y un apartado de ejemplo (clave 'customers' como bandera).
+export async function ensureBusinessSeed(): Promise<boolean> {
+  const db = await getDB();
+  if ((await db.count('customers')) > 0) return false;
+
+  const now = Date.now();
+  const customers: Customer[] = [
+    { id: crypto.randomUUID(), name: 'María López', phone: '55-1234-5678', email: 'maria@example.com', address: 'Av. Reforma 100', balanceCents: 0, points: 45, createdAt: now },
+    { id: crypto.randomUUID(), name: 'Juan Martínez', phone: '55-2345-6789', email: 'juan@example.com', address: 'Calle Hidalgo 22', balanceCents: 5000, points: 12, createdAt: now },
+    { id: crypto.randomUUID(), name: 'Rosa Gómez', phone: '55-3456-7890', email: 'rosa@example.com', address: 'Insurgentes Sur 500', balanceCents: 0, points: 0, createdAt: now },
+  ];
+  const suppliers: Supplier[] = [
+    { id: crypto.randomUUID(), name: 'Distribuidora del Centro', contact: 'ventas@dcentro.com · 55-8000-1111', products: 'Abarrotes, aceite, arroz, frijol', createdAt: now },
+    { id: crypto.randomUUID(), name: 'Lácteos La Vaca', contact: 'pedidos@lavaca.com · 55-8000-2222', products: 'Leche, huevos, queso', createdAt: now },
+  ];
+
+  const ctx = db.transaction(['customers', 'suppliers'], 'readwrite');
+  await Promise.all([
+    ...customers.map((c) => ctx.objectStore('customers').put(c)),
+    ...suppliers.map((s) => ctx.objectStore('suppliers').put(s)),
+  ]);
+  await ctx.done;
+
+  // Un apartado abierto de ejemplo para el primer cliente.
+  const products = await getAllProducts();
+  const playera = products.find((p) => p.name === 'Playera M');
+  const cafe = products.find((p) => p.name === 'Café 250g');
+  if (playera && cafe) {
+    const items: SaleItem[] = [
+      { productId: String(playera.id), name: playera.name, priceCents: playera.price, quantity: 1, subtotalCents: playera.price },
+      { productId: String(cafe.id), name: cafe.name, priceCents: cafe.price, quantity: 2, subtotalCents: cafe.price * 2 },
+    ];
+    const total = items.reduce((s, i) => s + i.subtotalCents, 0);
+    const layaway: Layaway = {
+      id: crypto.randomUUID(),
+      customerId: customers[0].id,
+      customerName: customers[0].name,
+      items,
+      totalCents: total,
+      paidCents: 10000,
+      status: 'open',
+      payments: [{ amountCents: 10000, timestamp: now - 2 * DAY }],
+      createdAt: now - 2 * DAY,
+    };
+    await db.put('layaways', layaway);
+  }
+  return true;
+}
 
 // Construye una venta a partir de líneas [producto, cantidad] y métodos de pago.
 function buildSale(
