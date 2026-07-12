@@ -1,0 +1,11 @@
+/* Base mínima: MUI CssBaseline se encarga del resto de los resets. */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
