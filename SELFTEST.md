@@ -98,6 +98,14 @@ Generadas manejando **Edge** headless con perfil aislado
   hay servidor levantado, para no romper la ejecución standalone). Con preview/dev arriba
   responde 200.
 
+## Despliegue y verificación en vivo
+
+- **Demo en vivo:** https://agc-openpos.pages.dev (Cloudflare Pages, proyecto `agc-openpos`).
+- **Repo:** https://github.com/DilanProjects1001/open-pos-demo (público).
+- `curl` a `/`, `/venta` y `/reportes` → **200** (SPA fallback vía `public/_redirects`).
+- `iter_5_live.png` — venta completa con pago mixto ejecutada **sobre el sitio en vivo**
+  (login admin → turno → carrito $120 → efectivo $100 + tarjeta $30 → cambio $10 → ticket).
+
 ## Última ejecución
 
 `node check.js` (con preview) → **TODO OK**, exit 0 (incluye `GET /reportes -> 200`).
